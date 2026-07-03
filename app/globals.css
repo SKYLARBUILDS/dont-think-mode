@@ -76,3 +76,83 @@ body {
   filter: brightness(0.82) saturate(0.85);
   transition: filter 2s ease;
 }
+
+/* ───────────────────────────────────────────────────────────────────────────
+   Premium "/pro" scope. Everything below applies ONLY under .pro (the wrapper
+   in app/pro/layout.tsx). Purely additive — the classic tree never sees it.
+   ─────────────────────────────────────────────────────────────────────────── */
+/* Bright · playful. /pro is LIGHT-ONLY — these values apply regardless of the
+   global dark/light toggle (no .light dependency), so there is no dark version. */
+.pro {
+  --lux-bg: 249 250 252;        /* clean near-white canvas */
+  --lux-bg-2: 255 255 255;
+  --lux-card: 255 255 255;      /* white cards */
+  --lux-card-2: 248 249 251;
+  --lux-line: 232 234 239;
+  --lux-text: 23 26 33;         /* near-black headings */
+  --lux-dim: 100 104 116;
+  --lux-faint: 150 154 166;
+
+  /* Unified blue–green family. "amber"/"rose" are legacy names now holding
+     teal/blue so every existing usage stays in the same calm palette. */
+  --lux-sage: 52 196 104;       /* green — primary */
+  --lux-amber: 42 196 156;      /* teal (was warm) */
+  --lux-cyan: 70 152 234;       /* blue */
+  --lux-rose: 96 176 226;       /* sky blue (was pink) */
+  --lux-violet: 96 158 220;     /* soft blue (was purple) */
+  --lux-coral: 255 99 88;       /* red — genuine negatives only */
+
+  --lux-shadow: 0 16px 40px -22px rgba(22, 30, 58, 0.18);
+  --lux-glass: rgba(255, 255, 255, 0.78);
+  --lux-glass-line: rgba(20, 24, 40, 0.06);
+
+  /* Clean white — only the faintest cool depth at the very top. */
+  --grad-aurora:
+    radial-gradient(100% 42% at 50% -16%, rgba(150, 168, 220, 0.07), transparent 70%);
+  --grad-focus: linear-gradient(135deg, rgb(64 206 152), rgb(72 150 234));
+  --grad-sage: linear-gradient(135deg, rgb(86 214 132), rgb(52 196 150));
+  --grad-violet: linear-gradient(135deg, rgb(86 188 196), rgb(72 150 234));
+
+  color-scheme: light;
+}
+
+/* Frosted-glass surface used by premium cards / nav. */
+.pro .lux-glass {
+  background: var(--lux-glass);
+  border: 1px solid var(--lux-glass-line);
+  backdrop-filter: blur(20px) saturate(1.4);
+  -webkit-backdrop-filter: blur(20px) saturate(1.4);
+}
+
+/* Premium motion primitives (additive keyframes). */
+@keyframes lux-float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-6px); }
+}
+@keyframes lux-shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+@keyframes lux-glow {
+  0%, 100% { opacity: 0.5; }
+  50% { opacity: 1; }
+}
+@keyframes lux-pop {
+  0% { transform: scale(0.6); opacity: 0; }
+  60% { transform: scale(1.08); }
+  100% { transform: scale(1); opacity: 1; }
+}
+@keyframes lux-bob {
+  0%, 100% { transform: translateY(0) rotate(-2deg); }
+  50% { transform: translateY(-7px) rotate(2deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pro *,
+  .pro *::before,
+  .pro *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}

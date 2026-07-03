@@ -31,6 +31,7 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { execSync } from "node:child_process";
 
 const HOME = os.homedir();
 const VAULT = process.env.LIFEOS_VAULT || path.join(HOME, "Desktop", "Skylar");
@@ -43,18 +44,104 @@ const ICLOUD_ROOT = path.join(
 );
 const ICLOUD = path.join(ICLOUD_ROOT, "LifeOS");
 const DOWNLOADS = path.join(HOME, "Downloads");
+
+// WeChat 文件传输助手 drop: files sent from the phone land in month folders
+// under …/xwechat_files/<wxid>/msg/file/YYYY-MM/. Scan the recent months so
+// "export on phone → send to 文件传输助手" syncs with zero extra steps.
+function wechatFileDirs() {
+  const base = path.join(
+    HOME,
+    "Library",
+    "Containers",
+    "com.tencent.xinWeChat",
+    "Data",
+    "Documents",
+    "xwechat_files"
+  );
+  const dirs = [];
+  try {
+    for (const wxid of fs.readdirSync(base)) {
+      const fileRoot = path.join(base, wxid, "msg", "file");
+      if (!fs.existsSync(fileRoot)) continue;
+      const now = new Date();
+      for (const back of [0, 1]) {
+        const d = new Date(now.getFullYear(), now.getMonth() - back, 1);
+        const ym = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+        const monthDir = path.join(fileRoot, ym);
+        if (fs.existsSync(monthDir)) dirs.push(monthDir);
+      }
+    }
+  } catch {
+    /* WeChat not installed / no permission — skip */
+  }
+  return dirs;
+}
+
 // Scan the iCloud Drive root too — iOS "Save to Files" often drops the export
 // there rather than inside the LifeOS subfolder, and we don't want to miss it.
 const SEARCH_DIRS = process.env.LIFEOS_BACKUP_DIR
   ? [process.env.LIFEOS_BACKUP_DIR]
-  : [ICLOUD, ICLOUD_ROOT, DOWNLOADS];
+  : [ICLOUD, ICLOUD_ROOT, DOWNLOADS, ...wechatFileDirs()];
 
-// ── 1. Locate the backup JSON ───────────────────────────────
-function newestBackup() {
+function die(msg) {
+  console.error(`\n✗ ${msg}\n`);
+  process.exit(1);
+}
+
+// iCloud can keep a file "dataless" (in the cloud, not on disk); reading it then
+// fails with "Unknown system error -11". Ask iCloud to materialize it, then wait
+// briefly for the bytes to land.
+function tryMaterialize(f) {
+  try {
+    execSync(`/usr/bin/brctl download ${JSON.stringify(f)}`, {
+      stdio: "ignore",
+      timeout: 20000,
+    });
+  } catch {
+    /* brctl may be unavailable or already downloading — ignore */
+  }
+  for (let i = 0; i < 12; i++) {
+    try {
+      const raw = fs.readFileSync(f, "utf8");
+      if (raw.length > 0) return raw;
+    } catch {
+      /* not ready yet */
+    }
+    try {
+      execSync("sleep 1");
+    } catch {}
+  }
+  return null;
+}
+
+function readValidBackup(f) {
+  let raw;
+  try {
+    raw = fs.readFileSync(f, "utf8");
+  } catch {
+    raw = tryMaterialize(f); // likely an iCloud placeholder
+  }
+  if (!raw) return null;
+  let parsed;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    return null;
+  }
+  const data = parsed?.data ?? parsed;
+  if (!data || typeof data !== "object" || !Array.isArray(data.history))
+    return null;
+  return data;
+}
+
+// ── 1+2. Locate + parse: newest backup that actually reads & validates ───
+function locateBackup() {
   const explicit = process.argv[2];
   if (explicit) {
     if (!fs.existsSync(explicit)) die(`找不到文件：${explicit}`);
-    return explicit;
+    const d = readValidBackup(explicit);
+    if (!d) die(`无法读取/解析：${explicit}`);
+    return { file: explicit, data: d };
   }
   const candidates = SEARCH_DIRS.filter((d) => fs.existsSync(d))
     .flatMap((dir) =>
@@ -71,27 +158,19 @@ function newestBackup() {
     die(
       `没找到 life-os-*.json 备份。找过这些位置：\n` +
         SEARCH_DIRS.map((d) => `  · ${d}`).join("\n") +
-        `\n手机上：打开 App → Settings → 数据备份 →「↓ 导出备份」→ 存到 iCloud › LifeOS。`
+        `\n手机上：打开 App → 设置 → 数据备份 →「↓ 导出备份」→ 存到 iCloud。`
     );
-  return candidates[0].full;
+  // Newest first; skip any that can't be read/parsed (e.g. still-uploading).
+  for (const c of candidates) {
+    const d = readValidBackup(c.full);
+    if (d) return { file: c.full, data: d };
+  }
+  die(
+    `找到 ${candidates.length} 份备份但都读不了(可能 iCloud 还没下载完)。最新：${candidates[0].full}`
+  );
 }
 
-function die(msg) {
-  console.error(`\n✗ ${msg}\n`);
-  process.exit(1);
-}
-
-// ── 2. Parse + normalize ────────────────────────────────────
-const file = newestBackup();
-let parsed;
-try {
-  parsed = JSON.parse(fs.readFileSync(file, "utf8"));
-} catch (e) {
-  die(`无法解析 JSON：${file}\n${e.message}`);
-}
-const data = parsed?.data ?? parsed;
-if (!data || typeof data !== "object" || !Array.isArray(data.history))
-  die(`这看起来不是 Life OS 备份：${file}`);
+const { file, data } = locateBackup();
 
 const schedule = Array.isArray(data.schedule) ? data.schedule : [];
 const blockTitle = new Map(schedule.map((b) => [b.id, b.title]));

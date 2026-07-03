@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
+import { originDenied, rateLimited } from "@/lib/apiGuard";
 
 export const runtime = "edge";
+
+// ~10 MB of audio, base64-inflated (×4/3). Voice notes are well under this.
+const MAX_AUDIO_B64_CHARS = 14_000_000;
 
 interface Body {
   audio: string; // base64 (no data: prefix)
@@ -12,6 +16,9 @@ const SYSTEM = `你是语音转写引擎。把用户提供的语音逐字转写�
 只输出转写出来的文字本身，不要任何解释、标点修饰、前缀或思考过程。听不清就输出空字符串。`;
 
 export async function POST(req: NextRequest) {
+  const denied = originDenied(req) ?? rateLimited(req);
+  if (denied) return denied;
+
   let body: Body;
   try {
     body = (await req.json()) as Body;
@@ -23,6 +30,9 @@ export async function POST(req: NextRequest) {
   if (!key || !audio) {
     return NextResponse.json({ error: "missing key or audio" }, { status: 400 });
   }
+  if (audio.length > MAX_AUDIO_B64_CHARS) {
+    return NextResponse.json({ error: "audio too large" }, { status: 413 });
+  }
   if (!key.startsWith("AIza")) {
     // Only Gemini supports inline audio here; OpenAI Whisper would need
     // multipart and a different route. Tell the client to fall back.
@@ -33,11 +43,12 @@ export async function POST(req: NextRequest) {
   }
 
   try {
+    // Key travels in a header, not the URL — query strings end up in logs.
     const res = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${encodeURIComponent(key)}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent`,
       {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", "x-goog-api-key": key },
         body: JSON.stringify({
           systemInstruction: { parts: [{ text: SYSTEM }] },
           contents: [

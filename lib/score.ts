@@ -33,7 +33,7 @@ export function emptyDayLog(date: string): DayLog {
 }
 
 /** Points from the daily routine alone (the binary rituals). */
-function routinePoints(log: DayLog): number {
+export function routinePoints(log: DayLog): number {
   let s = 0;
   if (log.completedBlocks.includes("morning-upgrade")) s += POINTS.morningRoutine;
   if (log.fitnessDone) s += POINTS.fitness;
@@ -43,18 +43,30 @@ function routinePoints(log: DayLog): number {
 }
 
 /**
- * Recompute the live score from the day's activity:
+ * THE scoring formula — every path (live today, history rescore, backfill)
+ * must go through this one function so the semantics can't drift:
  *   routine rituals + (tasks done × 8) + (the #1 task → +25) + (pomodoros × 5).
+ * History rescoring can't know which task was #1, so it passes
+ * topTaskDone=false explicitly — that's a parameter, not a fork.
  */
-export function computeScore(log: DayLog, tasks: Task[]): number {
-  const doneCount = tasks.filter((t) => t.done).length;
-  const topTaskDone = tasks.find((t) => t.rank === 1)?.done ?? false;
+export function dayScore(
+  log: DayLog,
+  tasksDone: number,
+  topTaskDone: boolean
+): number {
   return (
     routinePoints(log) +
-    doneCount * POINTS.taskDone +
+    tasksDone * POINTS.taskDone +
     (topTaskDone ? POINTS.topTask : 0) +
     log.pomodorosDone * POINTS.pomodoro
   );
+}
+
+/** Live score for TODAY, derived from the current task list. */
+export function computeScore(log: DayLog, tasks: Task[]): number {
+  const doneCount = tasks.filter((t) => t.done).length;
+  const topTaskDone = tasks.find((t) => t.rank === 1)?.done ?? false;
+  return dayScore(log, doneCount, topTaskDone);
 }
 
 export interface ScoreLever {

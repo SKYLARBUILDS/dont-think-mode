@@ -15,7 +15,7 @@ export function defaultSchedule(s: Settings): TimeBlock[] {
   return [
     {
       id: "morning-upgrade",
-      title: "Morning Routine",
+      title: "晨间唤醒",
       subtitle: "早晨开机",
       type: "routine",
       start: wake,
@@ -32,7 +32,7 @@ export function defaultSchedule(s: Settings): TimeBlock[] {
     {
       id: "prep",
       title: "出门准备",
-      subtitle: "Get Ready",
+      subtitle: "准备出门",
       type: "prep",
       start: wake + 30,
       end: wake + 60,
@@ -42,7 +42,7 @@ export function defaultSchedule(s: Settings): TimeBlock[] {
     },
     {
       id: "work-am",
-      title: "Deep Work — Morning",
+      title: "上午深度工作",
       subtitle: "上午专注",
       type: "work",
       start: H(9),
@@ -53,8 +53,8 @@ export function defaultSchedule(s: Settings): TimeBlock[] {
     },
     {
       id: "lunch",
-      title: "Lunch & Recharge",
-      subtitle: "午饭充电",
+      title: "午餐充电",
+      subtitle: "离屏休息",
       type: "meal",
       start: H(12),
       end: H(13),
@@ -64,7 +64,7 @@ export function defaultSchedule(s: Settings): TimeBlock[] {
     },
     {
       id: "work-pm",
-      title: "Deep Work — Afternoon",
+      title: "下午深度工作",
       subtitle: "下午专注",
       type: "work",
       start: H(13),
@@ -75,7 +75,7 @@ export function defaultSchedule(s: Settings): TimeBlock[] {
     },
     {
       id: "fitness",
-      title: "Fitness & Movement",
+      title: "训练 & 运动",
       subtitle: "训练时间",
       type: "fitness",
       start: H(18, 30),
@@ -85,8 +85,8 @@ export function defaultSchedule(s: Settings): TimeBlock[] {
     },
     {
       id: "dinner",
-      title: "Cook & Eat",
-      subtitle: "做饭 + 吃饭",
+      title: "做饭吃饭",
+      subtitle: "下厨 + 补给",
       type: "meal",
       start: H(20),
       end: H(21),
@@ -96,7 +96,7 @@ export function defaultSchedule(s: Settings): TimeBlock[] {
     },
     {
       id: "winddown",
-      title: "Wind Down",
+      title: "放松收尾",
       subtitle: "降低刺激，准备休息",
       type: "winddown",
       start: H(21),
@@ -114,7 +114,7 @@ export function defaultSchedule(s: Settings): TimeBlock[] {
     },
     {
       id: "sleep",
-      title: "Day Complete",
+      title: "今天结束",
       subtitle: "睡觉，今天结束",
       type: "sleep",
       start: sleep,
@@ -227,13 +227,13 @@ export function packTasksIntoWork(
 export function todaysWorkout(date = new Date()): Task["title"] {
   // simple rotating split keyed on day-of-week
   const map: Record<number, string> = {
-    1: "Push Day", // Mon
-    2: "Pull Day", // Tue
-    3: "Cardio Day", // Wed
-    4: "Leg Day", // Thu
-    5: "Push Day", // Fri
-    6: "Active Recovery", // Sat
-    0: "Pull Day", // Sun
+    1: "推 · 胸肩三头", // Mon
+    2: "拉 · 背与二头", // Tue
+    3: "有氧日", // Wed
+    4: "腿日", // Thu
+    5: "推 · 胸肩三头", // Fri
+    6: "主动恢复", // Sat
+    0: "拉 · 背与二头", // Sun
   };
   return map[date.getDay()];
 }

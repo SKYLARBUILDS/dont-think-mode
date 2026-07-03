@@ -53,6 +53,7 @@ export interface Task {
   progress?: number; // 0–100, manual "how far along" for partial work
   recurring?: boolean; // a daily routine — reappears fresh every day
   carriedOver?: boolean; // rolled over from a previous unfinished day
+  creditedFromDone?: number; // pomodoros banked by marking done, so undo reverses exactly
 }
 
 export type WorkoutType = "push" | "pull" | "legs" | "dance";

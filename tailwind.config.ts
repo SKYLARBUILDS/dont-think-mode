@@ -35,6 +35,24 @@ const config: Config = {
         rose: {
           DEFAULT: "rgb(var(--rose) / <alpha-value>)",
         },
+        // Premium palette — only resolves under .pro (see globals.css), so these
+        // classes are inert on the classic tree even though they exist globally.
+        lux: {
+          bg: "rgb(var(--lux-bg) / <alpha-value>)",
+          bg2: "rgb(var(--lux-bg-2) / <alpha-value>)",
+          card: "rgb(var(--lux-card) / <alpha-value>)",
+          card2: "rgb(var(--lux-card-2) / <alpha-value>)",
+          line: "rgb(var(--lux-line) / <alpha-value>)",
+          text: "rgb(var(--lux-text) / <alpha-value>)",
+          dim: "rgb(var(--lux-dim) / <alpha-value>)",
+          faint: "rgb(var(--lux-faint) / <alpha-value>)",
+          violet: "rgb(var(--lux-violet) / <alpha-value>)",
+          sage: "rgb(var(--lux-sage) / <alpha-value>)",
+          amber: "rgb(var(--lux-amber) / <alpha-value>)",
+          rose: "rgb(var(--lux-rose) / <alpha-value>)",
+          cyan: "rgb(var(--lux-cyan) / <alpha-value>)",
+          coral: "rgb(var(--lux-coral) / <alpha-value>)",
+        },
       },
       keyframes: {
         breathe: {
@@ -49,6 +67,12 @@ const config: Config = {
       animation: {
         breathe: "breathe 6s ease-in-out infinite",
         rise: "rise 0.5s ease-out both",
+        // reference @keyframes defined in globals.css (.pro scope)
+        float: "lux-float 5s ease-in-out infinite",
+        shimmer: "lux-shimmer 2.5s linear infinite",
+        glow: "lux-glow 3.5s ease-in-out infinite",
+        pop: "lux-pop 0.42s cubic-bezier(0.22,1,0.36,1) both",
+        bob: "lux-bob 4s ease-in-out infinite",
       },
     },
   },

@@ -103,6 +103,19 @@ export default function SettingsPage() {
     <div>
       <Header title="Settings" sub="调好一次，之后就别再想。" />
 
+      <Link
+        href="/pro"
+        className="mt-2 flex items-center justify-between rounded-2xl border border-sage/40 bg-sage/10 px-4 py-3.5"
+      >
+        <div>
+          <p className="text-sm font-medium text-sage">✨ 试试新版界面</p>
+          <p className="text-[11px] text-mist-faint">
+            同一份数据，全新的沉浸式设计 — 随时切回经典版
+          </p>
+        </div>
+        <span className="text-sage">→</span>
+      </Link>
+
       <Group title="你">
         <div>
           <label className="text-sm text-mist-dim">称呼（可选）</label>

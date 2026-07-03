@@ -159,6 +159,130 @@ export async function buildDayCard(d: DayCardData): Promise<Blob> {
   );
 }
 
+export interface PeriodCardData {
+  title: string; // "本周报告" / "本月报告"
+  range: string; // "6月22日 – 6月28日"
+  avgScore: number;
+  tasks: number;
+  pomodoros: number;
+  focusHours: number;
+  daysMet: number;
+  totalDays: number;
+  topTasks: string[];
+  name?: string;
+}
+
+/** Render a weekly / monthly progress report card → PNG blob. */
+export async function buildPeriodCard(d: PeriodCardData): Promise<Blob> {
+  const scale = 2;
+  const W = 1080;
+  const padX = 84;
+
+  const MAX_ROWS = 10;
+  const shown = d.topTasks.slice(0, MAX_ROWS);
+  const overflow = d.topTasks.length - shown.length;
+  const rows = shown.length + (overflow > 0 ? 1 : 0);
+
+  const headerH = 620;
+  const rowH = 66;
+  const listH = (rows || 1) * rowH + 60;
+  const H = headerH + listH + 120;
+
+  const canvas = document.createElement("canvas");
+  canvas.width = W * scale;
+  canvas.height = H * scale;
+  const ctx = canvas.getContext("2d")!;
+  ctx.scale(scale, scale);
+
+  const bg = ctx.createLinearGradient(0, 0, 0, H);
+  bg.addColorStop(0, "#101014");
+  bg.addColorStop(1, "#0a0a0c");
+  ctx.fillStyle = bg;
+  ctx.fillRect(0, 0, W, H);
+
+  // teal→blue accent bar (matches /pro palette)
+  const bar = ctx.createLinearGradient(0, 0, W, 0);
+  bar.addColorStop(0, "#34c46a");
+  bar.addColorStop(1, "#4a90e8");
+  ctx.fillStyle = bar;
+  ctx.fillRect(0, 0, W, 6);
+
+  ctx.fillStyle = "#6b6b73";
+  ctx.font = `600 26px ${FONT}`;
+  ctx.textBaseline = "alphabetic";
+  ctx.fillText("D O N ' T   T H I N K   M O D E", padX, 96);
+
+  ctx.fillStyle = "#e7e7ea";
+  ctx.font = `700 68px ${FONT}`;
+  ctx.fillText(d.title, padX, 184);
+  ctx.fillStyle = "#8a8a94";
+  ctx.font = `500 34px ${FONT}`;
+  ctx.fillText(d.range, padX, 232);
+
+  // big average score
+  ctx.fillStyle = "#34c46a";
+  ctx.font = `800 200px ${FONT}`;
+  ctx.fillText(String(d.avgScore), padX - 4, 452);
+  ctx.fillStyle = "#6b6b73";
+  ctx.font = `600 34px ${FONT}`;
+  ctx.fillText("平均得分", padX + 4, 502);
+
+  //达标 days (top-right)
+  ctx.textAlign = "right";
+  ctx.fillStyle = "#4a90e8";
+  ctx.font = `700 60px ${FONT}`;
+  ctx.fillText(`${d.daysMet}/${d.totalDays}`, W - padX, 210);
+  ctx.fillStyle = "#6b6b73";
+  ctx.font = `600 28px ${FONT}`;
+  ctx.fillText("天达标", W - padX, 254);
+  ctx.textAlign = "left";
+
+  // stat line
+  ctx.fillStyle = "#a1a1aa";
+  ctx.font = `500 38px ${FONT}`;
+  ctx.fillText(
+    `✅ ${d.tasks} 件任务    ·    🍅 ${d.pomodoros} 番茄    ·    ⏱ ${d.focusHours} 小时专注`,
+    padX,
+    572
+  );
+
+  ctx.strokeStyle = "#26262c";
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(padX, headerH);
+  ctx.lineTo(W - padX, headerH);
+  ctx.stroke();
+
+  ctx.fillStyle = "#6b6b73";
+  ctx.font = `600 30px ${FONT}`;
+  ctx.fillText("这段时间做成的事", padX, headerH + 56);
+
+  let y = headerH + 56 + 56;
+  ctx.font = `500 40px ${FONT}`;
+  for (const label of shown) {
+    ctx.fillStyle = "#34c46a";
+    ctx.fillText("✓", padX, y);
+    ctx.fillStyle = "#e7e7ea";
+    ctx.fillText(ellipsize(ctx, label, W - padX * 2 - 64), padX + 56, y);
+    y += rowH;
+  }
+  if (overflow > 0) {
+    ctx.fillStyle = "#6b6b73";
+    ctx.fillText(`…还有 ${overflow} 项`, padX + 56, y);
+  }
+
+  ctx.fillStyle = "#6b6b73";
+  ctx.font = `500 28px ${FONT}`;
+  ctx.fillText("坚持记录，进度看得见。", padX, H - 56);
+
+  return await new Promise<Blob>((resolve, reject) =>
+    canvas.toBlob(
+      (b) => (b ? resolve(b) : reject(new Error("toBlob failed"))),
+      "image/png"
+    )
+  );
+}
+
 export type ShareResult = "shared" | "cancelled" | "downloaded" | "error";
 
 /** Share an already-built image blob. iOS share sheet → Save Image (Photos). */

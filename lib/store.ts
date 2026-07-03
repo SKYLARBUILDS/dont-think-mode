@@ -3,7 +3,7 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import { Goal, Settings, Task, DayLog, PomodoroSession, TimeBlock } from "./types";
-import { emptyDayLog, computeScore } from "./score";
+import { emptyDayLog, computeScore, dayScore } from "./score";
 import { defaultSchedule } from "./schedule";
 import { todayKey } from "./time";
 
@@ -61,6 +61,14 @@ interface LifeState {
   // lifecycle
   ensureToday: () => void;
   hydrate: () => void;
+
+  // retroactively edit a past day's record (premium Review). Recomputes that
+  // day's stored score from its counters.
+  adjustHistoryDay: (date: string, patch: Partial<DayLog>) => void;
+  toggleHistoryTask: (date: string, title: string) => void;
+  // Create a blank record for a past day that has none yet, so it can be
+  // back-filled (a day you never opened the app won't be in history otherwise).
+  ensureHistoryDay: (date: string) => void;
 
   // backup / restore
   exportData: () => string;
@@ -124,6 +132,14 @@ function recompute(today: DayLog, tasks: Task[]): DayLog {
   return { ...today, score: computeScore(today, tasks) };
 }
 
+// Past days don't keep per-task objects (only completedTasks titles + counters),
+// so a retroactively-edited history day is rescored from its own counters via
+// the SAME dayScore formula as live scoring. The #1-task bonus can't be
+// reconstructed historically → topTaskDone is explicitly false.
+function withHistoryScore(d: DayLog): DayLog {
+  return { ...d, score: dayScore(d, (d.completedTasks ?? []).length, false) };
+}
+
 type PomoPhase = "focus" | "break" | "long";
 
 /** Length of a pomodoro phase in seconds, from settings. */
@@ -142,6 +158,8 @@ function pomoLen(phase: PomoPhase, s: Settings): number {
 // returning user keeps their goals, history and streak. Runs before persist
 // reads the new key, so hydration picks up the migrated payload.
 const STORAGE_KEY = "dont-think-mode";
+// Ring buffer of pre-import/pre-sync snapshots — the "undo" for data accidents.
+export const UNDO_RING_KEY = "lifeos_undo_ring";
 if (typeof window !== "undefined") {
   try {
     const legacy = window.localStorage.getItem("skylar-life-os");
@@ -205,6 +223,22 @@ export const useLife = create<LifeState>()(
 
       importData: (raw) => {
         try {
+          // 后悔键: before anything overwrites the current state, stash it in a
+          // small ring buffer (last 3 distinct states) so a bad import/sync can
+          // always be undone from 设置 → 数据备份.
+          try {
+            const cur = get().exportData();
+            const ring: { at: string; payload: string }[] = JSON.parse(
+              localStorage.getItem(UNDO_RING_KEY) ?? "[]"
+            );
+            if (ring[0]?.payload !== cur) {
+              ring.unshift({ at: new Date().toISOString(), payload: cur });
+              localStorage.setItem(
+                UNDO_RING_KEY,
+                JSON.stringify(ring.slice(0, 3))
+              );
+            }
+          } catch {}
           // Any real import/restore exits the pinned demo clock.
           try {
             localStorage.removeItem("lifeos_demo_clock");
@@ -239,6 +273,41 @@ export const useLife = create<LifeState>()(
 
       markBackup: () => set({ lastBackupAt: Date.now() }),
 
+      adjustHistoryDay: (date, patch) =>
+        set((s) => ({
+          history: s.history.map((d) =>
+            d.date === date ? withHistoryScore({ ...d, ...patch }) : d
+          ),
+        })),
+
+      ensureHistoryDay: (date) =>
+        set((s) => {
+          if (!date || date === s.today.date) return {};
+          if (s.history.some((h) => h.date === date)) return {};
+          const day = emptyDayLog(date);
+          const history = [day, ...s.history].sort((a, b) =>
+            a.date < b.date ? 1 : -1
+          );
+          return { history };
+        }),
+
+      // Add or remove a finished-task title on a PAST day, then re-score it.
+      toggleHistoryTask: (date, title) =>
+        set((s) => {
+          const t = title.trim();
+          if (!t) return {};
+          return {
+            history: s.history.map((d) => {
+              if (d.date !== date) return d;
+              const list = d.completedTasks ?? [];
+              const completedTasks = list.includes(t)
+                ? list.filter((x) => x !== t)
+                : [...list, t];
+              return withHistoryScore({ ...d, completedTasks });
+            }),
+          };
+        }),
+
       ensureToday: () => {
         const { today, history, streak, tasks, settings } = get();
         const key = todayKey();
@@ -246,7 +315,7 @@ export const useLife = create<LifeState>()(
         // roll over the day
         const hadActivity =
           today.pomodorosDone > 0 || today.completedBlocks.length > 0;
-        const newHistory = hadActivity ? [today, ...history].slice(0, 90) : history;
+        const newHistory = hadActivity ? [today, ...history].slice(0, 365) : history;
         const continued = hadActivity && today.score >= 60;
         // Carry unfinished tasks into the new day — finished ones are already
         // banked in history. Reset daily progress + re-rank, and tag them so
@@ -261,6 +330,7 @@ export const useLife = create<LifeState>()(
             rank: i + 1,
             done: false,
             donePomodoros: 0,
+            creditedFromDone: 0,
             progress: 0,
             optional: false,
             carriedOver: t.recurring ? false : true,
@@ -444,8 +514,25 @@ export const useLife = create<LifeState>()(
           const target = s.tasks.find((t) => t.id === id);
           if (!target) return {};
           const nowDone = !target.done;
+          // Completing a task credits its PLANNED pomodoros: fill donePomodoros
+          // up to the estimate and bank the delta into the day's count + focus
+          // minutes + score. If you already ran that many on the timer, the delta
+          // is 0 (no double-count). Un-completing reverses exactly what completion
+          // added (tracked per-task in creditedFromDone), never below 0.
+          const planned = Math.max(0, target.pomodoros);
+          const delta = nowDone
+            ? Math.max(0, planned - target.donePomodoros)
+            : -Math.max(0, target.creditedFromDone ?? 0);
+          const fLen = s.settings.focusLength;
           const tasks = s.tasks.map((t) =>
-            t.id === id ? { ...t, done: nowDone } : t
+            t.id === id
+              ? {
+                  ...t,
+                  done: nowDone,
+                  donePomodoros: Math.max(0, t.donePomodoros + delta),
+                  creditedFromDone: nowDone ? delta : 0,
+                }
+              : t
           );
           // Keep a per-day log of finished task titles so Review can show, by
           // date, exactly what got done.
@@ -458,10 +545,16 @@ export const useLife = create<LifeState>()(
           // Finishing the focused task drops the manual pick so focus rolls on.
           const activeTaskId =
             nowDone && s.activeTaskId === id ? null : s.activeTaskId;
+          const today = {
+            ...s.today,
+            completedTasks,
+            pomodorosDone: Math.max(0, s.today.pomodorosDone + delta),
+            focusMinutes: Math.max(0, s.today.focusMinutes + delta * fLen),
+          };
           return {
             tasks,
             activeTaskId,
-            today: recompute({ ...s.today, completedTasks }, tasks),
+            today: recompute(today, tasks),
           };
         }),
 
@@ -694,7 +787,40 @@ export const useLife = create<LifeState>()(
     }),
     {
       name: STORAGE_KEY,
-      version: 1,
+      // Bump this whenever persisted shape/content needs a one-time transform,
+      // and handle it in `migrate` below — NOT with ad-hoc ifs in rehydrate.
+      version: 2,
+      migrate: (persisted: unknown, fromVersion: number) => {
+        const state = persisted as Partial<LifeState>;
+        if (fromVersion < 2 && state) {
+          // v1 → v2: field defaults that used to live in onRehydrateStorage,
+          // plus the one-time English→Chinese default-block-title translation.
+          if (!state.schedule || state.schedule.length === 0) {
+            state.schedule = defaultSchedule(state.settings ?? DEFAULT_SETTINGS);
+          }
+          if (state.settings) {
+            state.settings.autoBackup ??= true;
+            state.settings.theme ??= "dark";
+            state.settings.nightlyBackup ??= true;
+          }
+          const TITLE_ZH: Record<string, string> = {
+            "Morning Routine": "晨间唤醒",
+            "Get Ready": "准备出门",
+            "Deep Work — Morning": "上午深度工作",
+            "Lunch & Recharge": "午餐充电",
+            "Deep Work — Afternoon": "下午深度工作",
+            "Fitness & Movement": "训练 & 运动",
+            "Cook & Eat": "做饭吃饭",
+            "Wind Down": "放松收尾",
+            "Day Complete": "今天结束",
+          };
+          state.schedule?.forEach((b) => {
+            if (b.title && TITLE_ZH[b.title]) b.title = TITLE_ZH[b.title];
+            if (b.subtitle && TITLE_ZH[b.subtitle]) b.subtitle = TITLE_ZH[b.subtitle];
+          });
+        }
+        return state as LifeState;
+      },
       partialize: (s) => ({
         settings: s.settings,
         schedule: s.schedule,
@@ -715,21 +841,10 @@ export const useLife = create<LifeState>()(
         lastBackupAt: s.lastBackupAt,
       }),
       onRehydrateStorage: () => (state) => {
-        // Migrate users persisted before the schedule became editable.
+        // Lifecycle only — one-time data transforms belong in `migrate` above.
+        // (Defensive: a corrupt/empty schedule would break every screen.)
         if (state && (!state.schedule || state.schedule.length === 0)) {
           state.schedule = defaultSchedule(state.settings ?? DEFAULT_SETTINGS);
-        }
-        // Default auto-backup on for users persisted before it existed.
-        if (state?.settings && state.settings.autoBackup === undefined) {
-          state.settings.autoBackup = true;
-        }
-        // Default theme for users persisted before light mode existed.
-        if (state?.settings && state.settings.theme === undefined) {
-          state.settings.theme = "dark";
-        }
-        // Default nightly backup on for users persisted before it existed.
-        if (state?.settings && state.settings.nightlyBackup === undefined) {
-          state.settings.nightlyBackup = true;
         }
         state?.hydrate();
         state?.ensureToday();

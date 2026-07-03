@@ -12,6 +12,8 @@ const ITEMS: { href: string; label: string; icon: string }[] = [
 
 export default function BottomNav() {
   const path = usePathname();
+  // The premium /pro tree renders its own navigation.
+  if (path.startsWith("/pro")) return null;
   return (
     <nav className="fixed inset-x-0 bottom-0 z-50 border-t border-ink-line bg-ink/80 backdrop-blur-xl">
       <div className="mx-auto flex max-w-md items-stretch justify-between px-2 pb-[max(0.4rem,env(safe-area-inset-bottom))] pt-2">

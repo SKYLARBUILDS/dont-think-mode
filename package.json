@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start -p 4318",
     "lint": "next lint",
-    "obsidian": "node scripts/to-obsidian.mjs"
+    "obsidian": "node scripts/to-obsidian.mjs",
+    "test": "vitest run"
   },
   "dependencies": {
     "@capacitor/core": "^8.4.0",
@@ -25,8 +26,10 @@
     "@types/react": "^18.3.3",
     "@types/react-dom": "^18.3.0",
     "autoprefixer": "^10.4.19",
+    "jsdom": "^29.1.1",
     "postcss": "^8.4.39",
     "tailwindcss": "^3.4.6",
-    "typescript": "^5.5.3"
+    "typescript": "^5.5.3",
+    "vitest": "^4.1.9"
   }
 }
