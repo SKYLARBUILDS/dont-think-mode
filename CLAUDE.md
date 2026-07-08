@@ -18,7 +18,7 @@ loop. Solo-founder personal product by Skylar; bilingual (README.md = EN, README
 ```bash
 npm run dev        # next dev -p 4318  →  http://localhost:4318
 ```
-Other scripts: `npm run build` / `start` (also port 4318) / `lint` / `obsidian` (export via `scripts/to-obsidian.mjs`).
+Other scripts: `npm run build` / `start` (also port 4318) / `lint` / `obsidian` (export via `scripts/to-obsidian.mjs`) / **`npm test`** (vitest — 21 tests over scoring, task-credit/undo, rollover, and sync-merge; run before touching `lib/store.ts`, `lib/score.ts`, or `lib/merge.ts`).
 
 ## Where things live
 - `lib/types.ts` — **domain model** (TimeBlock, BlockType, GoalTier…; times = minutes-from-midnight)
@@ -53,6 +53,12 @@ Other scripts: `npm run build` / `start` (also port 4318) / `lint` / `obsidian` 
 ## State conventions
 - Local-first: everything works without network/account; Supabase sync is opt-in layered on top.
 - One global store (`useLife`); derived helpers in `lib/hooks.ts`. Don't add a second store.
+
+## 数据安全铁律 (Skylar 反复踩过的坑 — 不可违反)
+- **只有用户显式操作才改状态**:番茄钟跑完 ≠ 任务自动标记完成;计时 / 进度 / 打卡类状态只在用户主动点击时提交。她多次因"自动标记完成"丢掉真实状态。
+- **任何写 / 覆盖历史前先备份**:改动 localStorage / 训练记录 / 番茄计数前先存一份可回滚快照。她丢过训练记录和番茄钟计数,这是她最痛的 bug 类别。
+- **碰 `lib/store.ts` / `lib/score.ts` / `lib/merge.ts` 前必跑 `npm test`**(21 tests 覆盖 scoring / task-credit / undo / rollover / sync-merge),跑绿再改。
+- 部署门禁见下方 Deployment 节:不经 Skylar 明确同意,不部署、不覆盖线上、不覆盖旧数据。
 
 ## Feature-complete vs WIP (from git log, as of 2026-06-10)
 Done: core block timeline + pomodoro + score/streak; Supabase cloud sync with email+password
