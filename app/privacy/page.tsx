@@ -62,8 +62,8 @@ export default function PrivacyPage() {
           <h2 className="mb-1 font-medium text-mist">联系 · Contact</h2>
           <p>
             有任何问题：
-            <a href="mailto:skylar.expansio@gmail.com" className="text-sage">
-              skylar.expansio@gmail.com
+            <a href="mailto:skylar@ansiolab.com" className="text-sage">
+              skylar@ansiolab.com
             </a>
           </p>
         </section>
