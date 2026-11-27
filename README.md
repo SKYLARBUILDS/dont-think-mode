@@ -101,9 +101,9 @@ Nothing leaves your device — unless you turn on cloud sync, and then only your
 
 ## More from Skylar
 
-- [**ANSIO**](https://github.com/SkylarWJY/ANSIO-conversational) — the first conversational growth engineer for creators
+- [**ANSIO**](https://github.com/skylarbuilds/ANSIO-conversational) — the first conversational growth engineer for creators
 - [**skylarnyc.com**](https://skylarnyc.com) — NYC date-spot guide: 100 review-backed picks
-- More projects → [github.com/SkylarWJY](https://github.com/SkylarWJY)
+- More projects → [github.com/skylarbuilds](https://github.com/skylarbuilds)
 
 <div align="center">
 
